@@ -49,14 +49,11 @@ it to `3V3`.
 
 ```mermaid
 flowchart LR
-    subgraph RJ45[Touch2O cable / RJ45 breakout]
-        P1["Pin 1 · white/orange<br/>about 9 V"]
-        P3["Pin 3 · white/green<br/>status TX"]
-        P5["Pin 5 · white/blue<br/>ground"]
-        P6["Pin 6 · green<br/>command RX"]
-        P7["Pin 7 · white/brown<br/>handshake"]
-    end
-
+    P1["RJ45 pin 1 · white/orange<br/>about 9 V"]
+    P3["RJ45 pin 3 · white/green<br/>status TX"]
+    P5["RJ45 pin 5 · white/blue<br/>ground"]
+    P6["RJ45 pin 6 · green<br/>command RX"]
+    P7["RJ45 pin 7 · white/brown<br/>handshake"]
     BUCK["9 V → 5 V<br/>buck converter"]
     XIAO["Seeed XIAO<br/>ESP32-C6"]
 
@@ -65,17 +62,8 @@ flowchart LR
     BUCK -->|OUT+ 5 V → 5V/VBUS| XIAO
     P5 -->|GND| XIAO
     P3 -->|status → D6 / GPIO16 RX| XIAO
-    XIAO -->|D7 / GPIO17 TX → command| P6
+    P6 <---|D7 / GPIO17 TX → command| XIAO
     P7 <-->|D3 / GPIO21| XIAO
-
-    classDef power fill:#fff3cd,stroke:#b7791f,color:#222;
-    classDef ground fill:#e2e8f0,stroke:#4a5568,color:#222;
-    classDef signal fill:#dbeafe,stroke:#2563eb,color:#222;
-    classDef device fill:#dcfce7,stroke:#15803d,color:#222;
-    class P1,BUCK power;
-    class P5 ground;
-    class P3,P6,P7 signal;
-    class XIAO device;
 ```
 
 ## Build photo

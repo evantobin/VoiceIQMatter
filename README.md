@@ -104,7 +104,7 @@ The local interface is 9600 baud, 8N1 with the handshake on RJ45 pin 7.
 Water temperature is not implemented because it is not provided by the
 documented Touch2O serial messages.
 
-## Source material
+## Sources
 
 * [Touch2O pinout and reference sketch](https://community.hubitat.com/t/delta-voiceiq-integration-killed/158256/33)
 * [Protocol confirmation](https://community.hubitat.com/t/delta-voiceiq-integration-v1-killed-v2-still-alive/158256)

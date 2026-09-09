@@ -21,8 +21,12 @@ Touch2O's actual valve-status messages.
 The Touch2O cable is not Ethernet. Do not connect it to a switch, injector, or
 other network equipment.
 
-Use USB-C only to flash the XIAO and record its Matter pairing code. Disconnect
-USB-C before connecting the buck converter to the XIAO `5V/VBUS` pin.
+> [!WARNING]
+> **Do not connect USB-C to your computer while the buck converter is connected
+> to the XIAO `5V/VBUS` pin.** Use one power source at a time. Disconnect USB-C
+> before powering the XIAO from the Touch2O cable.
+
+Use USB-C only to flash the XIAO and record its Matter pairing code.
 
 ## Wiring
 

@@ -16,11 +16,10 @@ namespace {
 
 constexpr const char *kLogTag = "touch2o";
 constexpr uart_port_t kUart = UART_NUM_1;
-// These are the verified protocol GPIO numbers from Vitaliy Kholyavenko's
-// Touch2O sketch, mapped to exposed XIAO ESP32-C6 pins. UART1 is routed through
-// the GPIO matrix so USB serial remains available for flashing and logs.
-constexpr gpio_num_t kRxPin = GPIO_NUM_16;
-constexpr gpio_num_t kTxPin = GPIO_NUM_17;
+// Match Vitaliy Kholyavenko's verified Touch2O GPIO mapping. The XIAO's GPIO
+// matrix lets UART1 receive on D6 and transmit on D7 while USB remains free.
+constexpr gpio_num_t kRxPin = GPIO_NUM_16;  // XIAO D6, RJ45 pin 3
+constexpr gpio_num_t kTxPin = GPIO_NUM_17;  // XIAO D7, RJ45 pin 6
 constexpr gpio_num_t kHandshakePin = GPIO_NUM_21;
 constexpr uint64_t kHeartbeatPeriodUs = 5'000'000;
 constexpr uint64_t kHandshakeLowUs = 500;
@@ -135,6 +134,19 @@ void logStatusFrame(const uint8_t *frame, size_t length, const char *description
   ESP_LOGI(kLogTag, "RX status [%s]: %s", description, hex);
 }
 
+void logRawRx(const uint8_t *bytes, size_t length) {
+  // poll() reads at most 64 bytes, which fits in one normal ESP log line.
+  char hex[(64 * 3)]{};
+  size_t offset = 0;
+  for (size_t i = 0; i < length && offset < sizeof(hex); ++i) {
+    const int written = snprintf(
+        hex + offset, sizeof(hex) - offset, i == 0 ? "%02X" : " %02X", bytes[i]);
+    if (written <= 0 || static_cast<size_t>(written) >= sizeof(hex) - offset) break;
+    offset += static_cast<size_t>(written);
+  }
+  ESP_LOGI(kLogTag, "RX raw (%u bytes): %s", static_cast<unsigned>(length), hex);
+}
+
 void consumeByte(uint8_t byte) {
   if (sRxLength == 0) {
     if (byte == protocol::kFrameHeader) sRx[sRxLength++] = byte;
@@ -217,6 +229,7 @@ void Touch2OController::begin() {
 void Touch2OController::poll() {
   uint8_t bytes[64];
   const int received = uart_read_bytes(kUart, bytes, sizeof(bytes), 0);
+  if (received > 0) logRawRx(bytes, static_cast<size_t>(received));
   for (int i = 0; i < received; ++i) consumeByte(bytes[i]);
 }
 

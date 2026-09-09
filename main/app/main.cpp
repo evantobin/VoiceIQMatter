@@ -11,6 +11,12 @@
 #include "matter/matter_water_valve.h"
 
 extern "C" void app_main() {
+  // Keep the HTTP page focused on the Touch2O UART capture. The web server
+  // remains active even though its routine messages are hidden.
+  esp_log_level_set("*", ESP_LOG_NONE);
+  esp_log_level_set("touch2o", ESP_LOG_INFO);
+  esp_log_level_set("web_log", ESP_LOG_INFO);
+
   esp_err_t error = nvs_flash_init();
   if (error == ESP_ERR_NVS_NO_FREE_PAGES || error == ESP_ERR_NVS_NEW_VERSION_FOUND) {
     ESP_ERROR_CHECK(nvs_flash_erase());

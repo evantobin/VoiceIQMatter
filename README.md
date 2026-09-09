@@ -2,11 +2,15 @@
 
 This firmware lets a Seeed Studio XIAO ESP32-C6 replace the Delta VoiceIQ
 module. It connects to the Touch2O solenoid's RJ45-shaped cable and exposes the
-faucet as a Matter Water Valve.
+faucet as a Matter on/off accessory.
 
-Matter Open and Close control the valve. Touching the faucet or operating its
+Matter On and Off control the valve. Touching the faucet or operating its
 handle still works normally, and the reported Matter state follows the
 Touch2O's actual valve-status messages.
+
+The Matter standard has a Water Valve device type, but Apple Home does not
+currently support it. This project advertises the faucet as an on/off plug-in
+unit so Apple Home can pair and control it.
 
 ## Parts
 
@@ -88,6 +92,16 @@ at `~/esp/esp-matter`. Set `ESP_IDF_EXPORT` or `ESP_MATTER_PATH` first if your
 installations are elsewhere.
 
 ## First boot and Matter pairing
+
+If the XIAO previously ran a build that advertised a Matter Water Valve, erase
+its old pairing data once before flashing this version:
+
+```sh
+idf.py -p /dev/cu.usbmodemXXXX erase-flash
+idf.py -p /dev/cu.usbmodemXXXX flash
+```
+
+Erasing the flash removes the XIAO from any Matter homes it was paired with.
 
 1. Leave the Touch2O cable and buck disconnected. Flash the XIAO over USB-C.
 2. Record the Matter manual pairing code or QR-code URL from the serial monitor.

@@ -23,7 +23,7 @@ extern "C" void app_main() {
 
   faucet::Touch2OController faucet;
   if (!matter_water_valve::begin(faucet)) {
-    ESP_LOGE("app", "Matter water-valve endpoint setup failed");
+    ESP_LOGE("app", "Matter faucet endpoint setup failed");
     return;
   }
   faucet.setStateCallback(matter_water_valve::publishValveState);

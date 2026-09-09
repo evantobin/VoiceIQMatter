@@ -2,8 +2,6 @@
 
 #include <cstring>
 
-#include <app-common/zap-generated/cluster-enums.h>
-#include <app/clusters/valve-configuration-and-control-server/valve-configuration-and-control-delegate.h>
 #include <esp_log.h>
 #include <esp_matter.h>
 #include <esp_matter_attribute_utils.h>
@@ -28,27 +26,8 @@ faucet::Touch2OController *sFaucet = nullptr;
 uint16_t sEndpointId = 0;
 bool sValveOpen = false;
 bool sReportPending = false;
+bool sReportingPhysicalState = false;
 portMUX_TYPE sStateMutex = portMUX_INITIALIZER_UNLOCKED;
-
-class FaucetValveDelegate final : public ValveConfigurationAndControl::Delegate {
- public:
-  chip::app::DataModel::Nullable<chip::Percent> HandleOpenValve(
-      chip::app::DataModel::Nullable<chip::Percent>) override {
-    if (sFaucet) sFaucet->requestValve(true);
-    // This is a binary valve. Report its physical state only after the Touch2O
-    // status packet confirms it, rather than claiming a level immediately.
-    return chip::app::DataModel::Nullable<chip::Percent>();
-  }
-
-  CHIP_ERROR HandleCloseValve() override {
-    if (sFaucet) sFaucet->requestValve(false);
-    return CHIP_NO_ERROR;
-  }
-
-  void HandleRemainingDurationTick(uint32_t) override {}
-};
-
-FaucetValveDelegate sValveDelegate;
 
 void reportValveStateOnMatterThread(intptr_t) {
   bool open;
@@ -58,19 +37,34 @@ void reportValveStateOnMatterThread(intptr_t) {
   portEXIT_CRITICAL(&sStateMutex);
   if (sEndpointId == 0) return;
 
-  // Update the endpoint attribute directly. The ESP-Matter generated water-valve
-  // device type provides this attribute, while the CHIP CodegenIntegration helper
-  // is not linked into generated-data-model builds.
-  const auto state = open ? ValveConfigurationAndControl::ValveStateEnum::kOpen
-                          : ValveConfigurationAndControl::ValveStateEnum::kClosed;
-  esp_matter_attr_val_t value = esp_matter_nullable_enum8(
-      nullable<uint8_t>(static_cast<uint8_t>(state)));
+  // Attribute updates also invoke the pre-update callback used for controller
+  // commands. Mark this as physical feedback so it is not sent back to Touch2O.
+  sReportingPhysicalState = true;
+  esp_matter_attr_val_t value = esp_matter_bool(open);
   const esp_err_t error = esp_matter::attribute::update(
-      sEndpointId, ValveConfigurationAndControl::Id,
-      ValveConfigurationAndControl::Attributes::CurrentState::Id, &value);
+      sEndpointId, OnOff::Id, OnOff::Attributes::OnOff::Id, &value);
+  sReportingPhysicalState = false;
   if (error != ESP_OK) {
     ESP_LOGW("matter", "Unable to publish physical valve state: %s", esp_err_to_name(error));
   }
+}
+
+esp_err_t attributeUpdateCallback(
+    esp_matter::attribute::callback_type_t type,
+    uint16_t endpointId,
+    uint32_t clusterId,
+    uint32_t attributeId,
+    esp_matter_attr_val_t *value,
+    void *) {
+  if (type != esp_matter::attribute::PRE_UPDATE || endpointId != sEndpointId || sFaucet == nullptr ||
+      sReportingPhysicalState) {
+    return ESP_OK;
+  }
+  if (clusterId == OnOff::Id && attributeId == OnOff::Attributes::OnOff::Id) {
+    ESP_LOGI("matter", "Apple Home requested faucet %s", value->val.b ? "on" : "off");
+    sFaucet->requestValve(value->val.b);
+  }
+  return ESP_OK;
 }
 
 void configureMetadata() {
@@ -96,26 +90,22 @@ chip::RendezvousInformationFlags rendezvousFlags() {
 bool begin(faucet::Touch2OController &faucet) {
   sFaucet = &faucet;
   esp_matter::node::config_t nodeConfig;
-  esp_matter::node_t *node = esp_matter::node::create(&nodeConfig, nullptr, nullptr, nullptr);
+  esp_matter::node_t *node = esp_matter::node::create(
+      &nodeConfig, attributeUpdateCallback, nullptr, nullptr);
   if (node == nullptr) {
     ESP_LOGE("matter", "Failed to create Matter node");
     return false;
   }
 
-  esp_matter::endpoint::water_valve::config_t config;
-  config.valve_configuration_and_control.delegate = &sValveDelegate;
-  // The faucet does not support timed dispensing via the serial protocol.
-  config.valve_configuration_and_control.open_duration = nullable<uint32_t>();
-  config.valve_configuration_and_control.default_open_duration = nullable<uint32_t>();
-  config.valve_configuration_and_control.remaining_duration = nullable<uint32_t>();
-  config.valve_configuration_and_control.current_state =
-      nullable<uint8_t>(static_cast<uint8_t>(ValveConfigurationAndControl::ValveStateEnum::kClosed));
-  config.valve_configuration_and_control.target_state = nullable<uint8_t>();
-
-  esp_matter::endpoint_t *endpoint = esp_matter::endpoint::water_valve::create(
+  // Apple Home does not currently accept Matter's Water Valve device type.
+  // Advertise a standard on/off plug-in unit so the faucet is controllable in
+  // Apple Home, while the physical status packet remains authoritative.
+  esp_matter::endpoint::on_off_plug_in_unit::config_t config;
+  config.on_off.on_off = false;
+  esp_matter::endpoint_t *endpoint = esp_matter::endpoint::on_off_plug_in_unit::create(
       node, &config, esp_matter::ENDPOINT_FLAG_NONE, nullptr);
   if (endpoint == nullptr) {
-    ESP_LOGE("matter", "Failed to create water-valve endpoint");
+    ESP_LOGE("matter", "Failed to create Apple Home-compatible faucet endpoint");
     return false;
   }
   sEndpointId = esp_matter::endpoint::get_id(endpoint);

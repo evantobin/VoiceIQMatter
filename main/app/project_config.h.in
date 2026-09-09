@@ -16,24 +16,24 @@ inline constexpr char kHostname[] = "@VOICEIQ_HOSTNAME@";
 inline constexpr bool kHttpDebugEnabled = VOICEIQ_ENABLE_HTTP_DEBUG;
 
 inline constexpr uint32_t kMatterPasscode = @VOICEIQ_MATTER_PASSCODE@;
-inline constexpr uint16_t kMatterDiscriminator = @VOICEIQ_MATTER_DISCRIMINATOR@;
-inline constexpr uint32_t kMatterSpake2pIterations = @VOICEIQ_MATTER_SPAKE2P_ITERATIONS@;
-inline constexpr char kMatterSpake2pSalt[] = "@VOICEIQ_MATTER_SPAKE2P_SALT@";
+inline constexpr uint16_t kMatterDiscriminator = 3840;
+inline constexpr uint32_t kMatterSpake2pIterations = 1000;
+inline constexpr char kMatterSpake2pSalt[] = "SPAKE2P Key Salt";
 
-inline constexpr char kManufacturer[] = "@VOICEIQ_MANUFACTURER@";
-inline constexpr char kProductName[] = "@VOICEIQ_PRODUCT_NAME@";
-inline constexpr char kModel[] = "@VOICEIQ_MODEL@";
+inline constexpr char kManufacturer[] = "DIY";
+inline constexpr char kProductName[] = "Delta Touch2O Faucet";
+inline constexpr char kModel[] = "VoiceIQ replacement";
 
-inline constexpr int kUartPort = @VOICEIQ_UART_PORT@;
-inline constexpr int kUartRxGpio = @VOICEIQ_UART_RX_GPIO@;
-inline constexpr int kUartTxGpio = @VOICEIQ_UART_TX_GPIO@;
-inline constexpr int kHandshakeGpio = @VOICEIQ_HANDSHAKE_GPIO@;
-inline constexpr int kUartBaud = @VOICEIQ_UART_BAUD@;
-inline constexpr uint64_t kHeartbeatPeriodUs = @VOICEIQ_HEARTBEAT_PERIOD_US@;
-inline constexpr uint64_t kHandshakeLowUs = @VOICEIQ_HANDSHAKE_LOW_US@;
-inline constexpr uint64_t kPostHandshakeDelayUs = @VOICEIQ_POST_HANDSHAKE_DELAY_US@;
+inline constexpr int kUartPort = 1;
+inline constexpr int kUartRxGpio = 16;    // XIAO D6 -> RJ45 pin 3
+inline constexpr int kUartTxGpio = 17;    // XIAO D7 -> RJ45 pin 6
+inline constexpr int kHandshakeGpio = 21; // XIAO D3 -> RJ45 pin 7
+inline constexpr int kUartBaud = 9600;
+inline constexpr uint64_t kHeartbeatPeriodUs = 5'000'000;
+inline constexpr uint64_t kHandshakeLowUs = 500;
+inline constexpr uint64_t kPostHandshakeDelayUs = 200;
 
-inline constexpr size_t kHttpLogBufferSize = @VOICEIQ_HTTP_LOG_BUFFER_SIZE@;
+inline constexpr size_t kHttpLogBufferSize = 12 * 1024;
 
 constexpr bool isValidMatterPasscode(uint32_t passcode) {
   if (passcode == 0 || passcode > 99999998 || passcode == 12345678 || passcode == 87654321) return false;

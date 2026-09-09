@@ -93,9 +93,9 @@ installations are elsewhere.
 
 ## Project settings
 
-All normal settings are in `project_config.cmake`. This includes the Matter
-passcode and discriminator, `voiceiqmatter.local` hostname, Wi-Fi versus Thread,
-HTTP debugging, UART pins, timings, and Matter device names.
+The four normal settings are together in `project_config.cmake`: Wi-Fi versus
+Thread, HTTP debugging, the `voiceiqmatter.local` hostname, and the Matter
+passcode. Each setting is one direct `set(...)` line.
 
 ### Choose Wi-Fi or Thread
 

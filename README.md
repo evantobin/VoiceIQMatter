@@ -97,6 +97,9 @@ The four normal settings are together in `project_config.cmake`: Wi-Fi versus
 Thread, HTTP debugging, the `voiceiqmatter.local` hostname, and the Matter
 passcode. Each setting is one direct `set(...)` line.
 
+The build checks all four values before compiling. An invalid choice stops
+immediately with a message explaining which setting needs to be corrected.
+
 ### Choose Wi-Fi or Thread
 
 Open `project_config.cmake` and change `VOICEIQ_MATTER_TRANSPORT` to one of

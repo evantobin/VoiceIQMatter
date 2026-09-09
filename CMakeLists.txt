@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 
 include(${CMAKE_CURRENT_LIST_DIR}/project_config.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/validate_project_config.cmake)
 
-string(TOLOWER "${VOICEIQ_MATTER_TRANSPORT}" VOICEIQ_MATTER_TRANSPORT)
 if(VOICEIQ_MATTER_TRANSPORT STREQUAL "wifi")
     set(VOICEIQ_TRANSPORT_WIFI 1)
     set(VOICEIQ_TRANSPORT_THREAD 0)

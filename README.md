@@ -93,16 +93,6 @@ installations are elsewhere.
 
 ## First boot and Matter pairing
 
-If the XIAO previously ran a build that advertised a Matter Water Valve, erase
-its old pairing data once before flashing this version:
-
-```sh
-idf.py -p /dev/cu.usbmodemXXXX erase-flash
-idf.py -p /dev/cu.usbmodemXXXX flash
-```
-
-Erasing the flash removes the XIAO from any Matter homes it was paired with.
-
 1. Leave the Touch2O cable and buck disconnected. Flash the XIAO over USB-C.
 2. Record the Matter manual pairing code or QR-code URL from the serial monitor.
 3. Disconnect USB-C.

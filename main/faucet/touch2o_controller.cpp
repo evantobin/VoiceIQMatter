@@ -7,6 +7,8 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/portmacro.h>
 
+#include <cstdio>
+
 #include "faucet/touch2o_protocol.h"
 
 namespace faucet {
@@ -120,6 +122,19 @@ void resetParser() {
   sExpectedLength = 0;
 }
 
+void logStatusFrame(const uint8_t *frame, size_t length, const char *description) {
+  // Three characters per byte (two hex digits plus a separator), with one byte
+  // saved for the terminating null character.
+  char hex[(protocol::kStatusFrameSize * 3)]{};
+  size_t offset = 0;
+  for (size_t i = 0; i < length && offset < sizeof(hex); ++i) {
+    const int written = snprintf(hex + offset, sizeof(hex) - offset, i == 0 ? "%02X" : " %02X", frame[i]);
+    if (written <= 0 || static_cast<size_t>(written) >= sizeof(hex) - offset) break;
+    offset += static_cast<size_t>(written);
+  }
+  ESP_LOGI(kLogTag, "RX status [%s]: %s", description, hex);
+}
+
 void consumeByte(uint8_t byte) {
   if (sRxLength == 0) {
     if (byte == protocol::kFrameHeader) sRx[sRxLength++] = byte;
@@ -146,13 +161,13 @@ void consumeByte(uint8_t byte) {
   if (sExpectedLength == protocol::kStatusFrameSize) {
     const auto state = protocol::parseStatusFrame(sRx, sRxLength);
     if (state == protocol::ValveState::Open) {
-      ESP_LOGI(kLogTag, "Touch2O reports valve open");
+      logStatusFrame(sRx, sRxLength, "valve open");
       if (sOwner) sOwner->publishState(true);
     } else if (state == protocol::ValveState::Closed) {
-      ESP_LOGI(kLogTag, "Touch2O reports valve closed");
+      logStatusFrame(sRx, sRxLength, "valve closed");
       if (sOwner) sOwner->publishState(false);
     } else {
-      ESP_LOGW(kLogTag, "Ignoring unknown Touch2O status frame");
+      logStatusFrame(sRx, sRxLength, "unknown");
     }
   }
   resetParser();

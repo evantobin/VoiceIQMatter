@@ -100,7 +100,11 @@ installations are elsewhere.
 
 Once the XIAO is on Wi-Fi, open `http://<device-ip>/` on your local network.
 It shows a live RAM-only log of Matter startup, commands, heartbeats, and valve
-status. The page has no authentication, so do not expose it outside your LAN.
+status. Every received status frame is shown in hexadecimal and labeled as
+`valve open`, `valve closed`, or `unknown`. Unknown frames are retained so the
+temperature data can be identified by comparing frames while the water changes
+from hot to cold. The page has no authentication, so do not expose it outside
+your LAN.
 
 ## Protocol implemented
 

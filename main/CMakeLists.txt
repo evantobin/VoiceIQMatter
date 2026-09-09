@@ -3,6 +3,7 @@ idf_component_register(
         "app/main.cpp"
         "debug/web_log.cpp"
         "faucet/touch2o_controller.cpp"
+        "faucet/touch2o_protocol.cpp"
         "matter/matter_water_valve.cpp"
     INCLUDE_DIRS "."
     REQUIRES

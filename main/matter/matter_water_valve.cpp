@@ -3,7 +3,6 @@
 #include <cstring>
 
 #include <app-common/zap-generated/cluster-enums.h>
-#include <app/clusters/valve-configuration-and-control-server/CodegenIntegration.h>
 #include <app/clusters/valve-configuration-and-control-server/valve-configuration-and-control-delegate.h>
 #include <esp_log.h>
 #include <esp_matter.h>
@@ -59,11 +58,18 @@ void reportValveStateOnMatterThread(intptr_t) {
   portEXIT_CRITICAL(&sStateMutex);
   if (sEndpointId == 0) return;
 
+  // Update the endpoint attribute directly. The ESP-Matter generated water-valve
+  // device type provides this attribute, while the CHIP CodegenIntegration helper
+  // is not linked into generated-data-model builds.
   const auto state = open ? ValveConfigurationAndControl::ValveStateEnum::kOpen
                           : ValveConfigurationAndControl::ValveStateEnum::kClosed;
-  const CHIP_ERROR error = ValveConfigurationAndControl::UpdateCurrentState(sEndpointId, state);
-  if (error != CHIP_NO_ERROR) {
-    ESP_LOGW("matter", "Unable to publish physical valve state: %" CHIP_ERROR_FORMAT, error.Format());
+  esp_matter_attr_val_t value = esp_matter_nullable_enum8(
+      nullable<uint8_t>(static_cast<uint8_t>(state)));
+  const esp_err_t error = esp_matter::attribute::update(
+      sEndpointId, ValveConfigurationAndControl::Id,
+      ValveConfigurationAndControl::Attributes::CurrentState::Id, &value);
+  if (error != ESP_OK) {
+    ESP_LOGW("matter", "Unable to publish physical valve state: %s", esp_err_to_name(error));
   }
 }
 

@@ -1,0 +1,11 @@
+{
+  "configurations": [
+    {
+      "name": "ESP32-C6",
+      "compileCommands": "${workspaceFolder}/build/compile_commands.json",
+      "cStandard": "c17",
+      "cppStandard": "c++17"
+    }
+  ],
+  "version": 4
+}

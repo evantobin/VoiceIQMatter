@@ -1,13 +1,13 @@
 #include "faucet/touch2o_controller.h"
 
-#include <cstring>
-
 #include <driver/gpio.h>
 #include <driver/uart.h>
 #include <esp_log.h>
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/portmacro.h>
+
+#include "faucet/touch2o_protocol.h"
 
 namespace faucet {
 namespace {
@@ -24,19 +24,6 @@ constexpr uint64_t kHeartbeatPeriodUs = 5'000'000;
 constexpr uint64_t kHandshakeLowUs = 500;
 constexpr uint64_t kPostHandshakeDelayUs = 200;
 
-constexpr uint8_t kHeader = 0xAA;
-constexpr uint8_t kStatusFrameId = 0x03;
-constexpr uint8_t kHeartbeatFrameId = 0x06;
-
-constexpr uint8_t kHeartbeatFrame[] = {0xAA, 0x06, 0x09, 0x00, 0x00,
-                                        0x15, 0x00, 0x00, 0xFF, 0x67};
-constexpr uint8_t kOpenFrame[] = {0xAA, 0x06, 0x82, 0x02, 0x00,
-                                  0x15, 0x00, 0x00, 0xFE, 0x34};
-constexpr uint8_t kCloseFrame[] = {0xAA, 0x06, 0x82, 0x00, 0x00,
-                                   0x15, 0x00, 0x00, 0x7D, 0x70};
-constexpr uint8_t kOpenStatus[] = {0xAA, 0x03, 0x82, 0x02, 0x00, 0x42, 0xD5};
-constexpr uint8_t kClosedStatus[] = {0xAA, 0x03, 0x82, 0x00, 0x00, 0x20, 0xB3};
-
 enum class PendingFrame : uint8_t { None, Heartbeat, Open, Close };
 
 Touch2OController *sOwner = nullptr;
@@ -51,22 +38,20 @@ size_t sRxLength = 0;
 size_t sExpectedLength = 0;
 
 void sendFrame(PendingFrame frame) {
-  const uint8_t *bytes = kHeartbeatFrame;
-  size_t length = sizeof(kHeartbeatFrame);
+  protocol::Command command = protocol::Command::Heartbeat;
   const char *description = "heartbeat";
   if (frame == PendingFrame::Open) {
-    bytes = kOpenFrame;
-    length = sizeof(kOpenFrame);
+    command = protocol::Command::Open;
     description = "open";
   } else if (frame == PendingFrame::Close) {
-    bytes = kCloseFrame;
-    length = sizeof(kCloseFrame);
+    command = protocol::Command::Close;
     description = "close";
   }
-  const int written = uart_write_bytes(kUart, bytes, length);
-  if (written != static_cast<int>(length)) {
+  const auto &bytes = protocol::commandFrame(command);
+  const int written = uart_write_bytes(kUart, bytes.data(), bytes.size());
+  if (written != static_cast<int>(bytes.size())) {
     ESP_LOGW(kLogTag, "Touch2O %s frame write failed (%d/%u)", description, written,
-             static_cast<unsigned>(length));
+             static_cast<unsigned>(bytes.size()));
   } else {
     ESP_LOGI(kLogTag, "Touch2O %s frame sent", description);
   }
@@ -137,7 +122,7 @@ void resetParser() {
 
 void consumeByte(uint8_t byte) {
   if (sRxLength == 0) {
-    if (byte == kHeader) sRx[sRxLength++] = byte;
+    if (byte == protocol::kFrameHeader) sRx[sRxLength++] = byte;
     return;
   }
 
@@ -147,10 +132,10 @@ void consumeByte(uint8_t byte) {
   }
   sRx[sRxLength++] = byte;
   if (sRxLength == 2) {
-    if (sRx[1] == kStatusFrameId) {
-      sExpectedLength = sizeof(kOpenStatus);
-    } else if (sRx[1] == kHeartbeatFrameId) {
-      sExpectedLength = sizeof(kHeartbeatFrame);
+    if (sRx[1] == protocol::kStatusFrameId) {
+      sExpectedLength = protocol::kStatusFrameSize;
+    } else if (sRx[1] == protocol::kCommandFrameId) {
+      sExpectedLength = protocol::kCommandFrameSize;
     } else {
       resetParser();
     }
@@ -158,11 +143,12 @@ void consumeByte(uint8_t byte) {
   }
   if (sExpectedLength == 0 || sRxLength != sExpectedLength) return;
 
-  if (sExpectedLength == sizeof(kOpenStatus)) {
-    if (std::memcmp(sRx, kOpenStatus, sizeof(kOpenStatus)) == 0) {
+  if (sExpectedLength == protocol::kStatusFrameSize) {
+    const auto state = protocol::parseStatusFrame(sRx, sRxLength);
+    if (state == protocol::ValveState::Open) {
       ESP_LOGI(kLogTag, "Touch2O reports valve open");
       if (sOwner) sOwner->publishState(true);
-    } else if (std::memcmp(sRx, kClosedStatus, sizeof(kClosedStatus)) == 0) {
+    } else if (state == protocol::ValveState::Closed) {
       ESP_LOGI(kLogTag, "Touch2O reports valve closed");
       if (sOwner) sOwner->publishState(false);
     } else {

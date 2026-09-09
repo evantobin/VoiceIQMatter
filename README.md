@@ -112,6 +112,14 @@ Touch2O RJ45 pin 7 (white/brown, HS) <──────────────
 Pins 2, 4, and 8: no connection. Insulate each wire separately.
 ```
 
+## Prototype build
+
+The current bench build uses the XIAO ESP32-C6, a 9 V-to-5 V buck converter,
+and a T568B-labeled RJ45 breakout. This photo is a wiring reference; verify all
+connections against the table above before connecting the faucet.
+
+![XIAO ESP32-C6 Touch2O Matter controller prototype](docs/images/touch2o-xiao-c6-build.jpg)
+
 The serial signals are 3.3 V logic, so do **not** use a 5 V level shifter. Pin
 7 is a bidirectional/open-drain signal. The firmware releases it high with an
 internal pull-up and only actively drives the required low request pulse.

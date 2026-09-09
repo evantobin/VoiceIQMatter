@@ -10,20 +10,18 @@
 #include <cstdio>
 
 #include "faucet/touch2o_protocol.h"
+#include "project_config.h"
 
 namespace faucet {
 namespace {
 
 constexpr const char *kLogTag = "touch2o";
-constexpr uart_port_t kUart = UART_NUM_1;
+constexpr uart_port_t kUart = static_cast<uart_port_t>(project_config::kUartPort);
 // Match Vitaliy Kholyavenko's verified Touch2O GPIO mapping. The XIAO's GPIO
 // matrix lets UART1 receive on D6 and transmit on D7 while USB remains free.
-constexpr gpio_num_t kRxPin = GPIO_NUM_16;  // XIAO D6, RJ45 pin 3
-constexpr gpio_num_t kTxPin = GPIO_NUM_17;  // XIAO D7, RJ45 pin 6
-constexpr gpio_num_t kHandshakePin = GPIO_NUM_21;
-constexpr uint64_t kHeartbeatPeriodUs = 5'000'000;
-constexpr uint64_t kHandshakeLowUs = 500;
-constexpr uint64_t kPostHandshakeDelayUs = 200;
+constexpr gpio_num_t kRxPin = static_cast<gpio_num_t>(project_config::kUartRxGpio);
+constexpr gpio_num_t kTxPin = static_cast<gpio_num_t>(project_config::kUartTxGpio);
+constexpr gpio_num_t kHandshakePin = static_cast<gpio_num_t>(project_config::kHandshakeGpio);
 
 enum class PendingFrame : uint8_t { None, Heartbeat, Open, Close };
 
@@ -34,6 +32,7 @@ portMUX_TYPE sProtocolMutex = portMUX_INITIALIZER_UNLOCKED;
 PendingFrame sPendingFrame = PendingFrame::None;
 bool sPulseActive = false;
 bool sHandshakeLow = false;
+bool sProtocolTrafficEnabled = false;
 uint8_t sRx[10]{};
 size_t sRxLength = 0;
 size_t sExpectedLength = 0;
@@ -72,7 +71,7 @@ void startPulseIfIdle() {
   // Pin 7 is a shared 3.3 V handshake. Open-drain makes HIGH a release, so
   // the Touch2O module can also use the line without contention.
   gpio_set_level(kHandshakePin, 0);
-  if (esp_timer_start_once(sHandshakeTimer, kHandshakeLowUs) != ESP_OK) {
+  if (esp_timer_start_once(sHandshakeTimer, project_config::kHandshakeLowUs) != ESP_OK) {
     ESP_LOGW(kLogTag, "Unable to schedule Touch2O handshake");
     gpio_set_level(kHandshakePin, 1);
     portENTER_CRITICAL(&sProtocolMutex);
@@ -98,7 +97,7 @@ void handshakeTimerCallback(void *) {
 
   if (sendAfterDelay) {
     gpio_set_level(kHandshakePin, 1);
-    if (esp_timer_start_once(sHandshakeTimer, kPostHandshakeDelayUs) != ESP_OK) {
+    if (esp_timer_start_once(sHandshakeTimer, project_config::kPostHandshakeDelayUs) != ESP_OK) {
       ESP_LOGW(kLogTag, "Unable to complete Touch2O handshake");
     }
     return;
@@ -111,6 +110,10 @@ void handshakeTimerCallback(void *) {
 
 void heartbeatTimerCallback(void *) {
   portENTER_CRITICAL(&sProtocolMutex);
+  if (!sProtocolTrafficEnabled) {
+    portEXIT_CRITICAL(&sProtocolMutex);
+    return;
+  }
   if (sPendingFrame == PendingFrame::None) sPendingFrame = PendingFrame::Heartbeat;
   portEXIT_CRITICAL(&sProtocolMutex);
   startPulseIfIdle();
@@ -189,7 +192,7 @@ void consumeByte(uint8_t byte) {
 
 void Touch2OController::begin() {
   uart_config_t config = {};
-  config.baud_rate = 9600;
+  config.baud_rate = project_config::kUartBaud;
   config.data_bits = UART_DATA_8_BITS;
   config.parity = UART_PARITY_DISABLE;
   config.stop_bits = UART_STOP_BITS_1;
@@ -218,12 +221,9 @@ void Touch2OController::begin() {
   ESP_ERROR_CHECK(esp_timer_create(&heartbeatArgs, &sHeartbeatTimer));
 
   sOwner = this;
-  ESP_ERROR_CHECK(esp_timer_start_periodic(sHeartbeatTimer, kHeartbeatPeriodUs));
-  // Bring the solenoid protocol up immediately; do not wait five seconds for
-  // the first heartbeat after power-up.
-  heartbeatTimerCallback(nullptr);
   ESP_LOGI(kLogTag, "Touch2O UART ready: 9600 8N1, RX=%d TX=%d handshake=%d", kRxPin, kTxPin,
            kHandshakePin);
+  ESP_LOGI(kLogTag, "Touch2O transmit traffic paused until Matter commissioning completes");
 }
 
 void Touch2OController::poll() {
@@ -233,8 +233,30 @@ void Touch2OController::poll() {
   for (int i = 0; i < received; ++i) consumeByte(bytes[i]);
 }
 
+void Touch2OController::enableProtocolTraffic() {
+  bool shouldStart = false;
+  portENTER_CRITICAL(&sProtocolMutex);
+  if (!sProtocolTrafficEnabled) {
+    sProtocolTrafficEnabled = true;
+    shouldStart = true;
+  }
+  portEXIT_CRITICAL(&sProtocolMutex);
+  if (!shouldStart) return;
+
+  ESP_ERROR_CHECK(esp_timer_start_periodic(sHeartbeatTimer, project_config::kHeartbeatPeriodUs));
+  // Send the first heartbeat immediately rather than waiting for the first
+  // five-second timer interval after commissioning.
+  heartbeatTimerCallback(nullptr);
+  ESP_LOGI(kLogTag, "Matter commissioned; Touch2O transmit traffic enabled");
+}
+
 void Touch2OController::requestValve(bool open) {
   portENTER_CRITICAL(&sProtocolMutex);
+  if (!sProtocolTrafficEnabled) {
+    portEXIT_CRITICAL(&sProtocolMutex);
+    ESP_LOGW(kLogTag, "Ignoring valve command until Matter commissioning completes");
+    return;
+  }
   sPendingFrame = open ? PendingFrame::Open : PendingFrame::Close;
   portEXIT_CRITICAL(&sProtocolMutex);
   ESP_LOGI(kLogTag, "Queued Touch2O valve %s", open ? "open" : "close");

@@ -6,16 +6,24 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include "project_config.h"
+#if VOICEIQ_ENABLE_HTTP_DEBUG
 #include "debug/web_log.h"
+#endif
 #include "faucet/touch2o_controller.h"
 #include "matter/matter_water_valve.h"
 
 extern "C" void app_main() {
+#if VOICEIQ_ENABLE_HTTP_DEBUG
   // Keep the HTTP page focused on the Touch2O UART capture. The web server
   // remains active even though its routine messages are hidden.
   esp_log_level_set("*", ESP_LOG_NONE);
   esp_log_level_set("touch2o", ESP_LOG_INFO);
   esp_log_level_set("web_log", ESP_LOG_INFO);
+#else
+  esp_log_level_set("*", ESP_LOG_NONE);
+  esp_log_level_set("touch2o", ESP_LOG_INFO);
+#endif
 
   esp_err_t error = nvs_flash_init();
   if (error == ESP_ERR_NVS_NO_FREE_PAGES || error == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -25,7 +33,9 @@ extern "C" void app_main() {
   ESP_ERROR_CHECK(error);
   ESP_ERROR_CHECK(esp_netif_init());
   ESP_ERROR_CHECK(esp_event_loop_create_default());
+#if VOICEIQ_ENABLE_HTTP_DEBUG
   web_log::begin();
+#endif
 
   faucet::Touch2OController faucet;
   if (!matter_water_valve::begin(faucet)) {

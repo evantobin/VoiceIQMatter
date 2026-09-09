@@ -1,0 +1,51 @@
+#pragma once
+
+#include <cstddef>
+#include <cstdint>
+
+#define VOICEIQ_ENABLE_HTTP_DEBUG @VOICEIQ_HTTP_DEBUG_ENABLED@
+#define VOICEIQ_TRANSPORT_WIFI @VOICEIQ_TRANSPORT_WIFI@
+#define VOICEIQ_TRANSPORT_THREAD @VOICEIQ_TRANSPORT_THREAD@
+
+namespace project_config {
+
+enum class MatterTransport { WiFi, Thread };
+
+inline constexpr MatterTransport kMatterTransport = MatterTransport::@VOICEIQ_TRANSPORT_CPP@;
+inline constexpr char kHostname[] = "@VOICEIQ_HOSTNAME@";
+inline constexpr bool kHttpDebugEnabled = VOICEIQ_ENABLE_HTTP_DEBUG;
+
+inline constexpr uint32_t kMatterPasscode = @VOICEIQ_MATTER_PASSCODE@;
+inline constexpr uint16_t kMatterDiscriminator = @VOICEIQ_MATTER_DISCRIMINATOR@;
+inline constexpr uint32_t kMatterSpake2pIterations = @VOICEIQ_MATTER_SPAKE2P_ITERATIONS@;
+inline constexpr char kMatterSpake2pSalt[] = "@VOICEIQ_MATTER_SPAKE2P_SALT@";
+
+inline constexpr char kManufacturer[] = "@VOICEIQ_MANUFACTURER@";
+inline constexpr char kProductName[] = "@VOICEIQ_PRODUCT_NAME@";
+inline constexpr char kModel[] = "@VOICEIQ_MODEL@";
+
+inline constexpr int kUartPort = @VOICEIQ_UART_PORT@;
+inline constexpr int kUartRxGpio = @VOICEIQ_UART_RX_GPIO@;
+inline constexpr int kUartTxGpio = @VOICEIQ_UART_TX_GPIO@;
+inline constexpr int kHandshakeGpio = @VOICEIQ_HANDSHAKE_GPIO@;
+inline constexpr int kUartBaud = @VOICEIQ_UART_BAUD@;
+inline constexpr uint64_t kHeartbeatPeriodUs = @VOICEIQ_HEARTBEAT_PERIOD_US@;
+inline constexpr uint64_t kHandshakeLowUs = @VOICEIQ_HANDSHAKE_LOW_US@;
+inline constexpr uint64_t kPostHandshakeDelayUs = @VOICEIQ_POST_HANDSHAKE_DELAY_US@;
+
+inline constexpr size_t kHttpLogBufferSize = @VOICEIQ_HTTP_LOG_BUFFER_SIZE@;
+
+constexpr bool isValidMatterPasscode(uint32_t passcode) {
+  if (passcode == 0 || passcode > 99999998 || passcode == 12345678 || passcode == 87654321) return false;
+  for (uint32_t digit = 1; digit <= 8; ++digit) {
+    if (passcode == digit * 11111111) return false;
+  }
+  return true;
+}
+
+static_assert(isValidMatterPasscode(kMatterPasscode), "VOICEIQ_MATTER_PASSCODE is not allowed by Matter");
+static_assert(kMatterDiscriminator <= 4095, "Matter discriminator must be from 0 through 4095");
+static_assert(sizeof(kMatterSpake2pSalt) - 1 >= 16 && sizeof(kMatterSpake2pSalt) - 1 <= 32,
+              "Matter SPAKE2+ salt must be 16 through 32 bytes");
+
+}  // namespace project_config

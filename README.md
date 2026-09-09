@@ -91,6 +91,45 @@ idf.py -p /dev/cu.usbmodemXXXX monitor
 at `~/esp/esp-matter`. Set `ESP_IDF_EXPORT` or `ESP_MATTER_PATH` first if your
 installations are elsewhere.
 
+## Project settings
+
+All normal settings are in `project_config.cmake`. This includes the Matter
+passcode and discriminator, `voiceiqmatter.local` hostname, Wi-Fi versus Thread,
+HTTP debugging, UART pins, timings, and Matter device names.
+
+### Choose Wi-Fi or Thread
+
+Open `project_config.cmake` and change `VOICEIQ_MATTER_TRANSPORT` to one of
+these values:
+
+```cmake
+# Matter over Wi-Fi
+set(VOICEIQ_MATTER_TRANSPORT "wifi")
+```
+
+```cmake
+# Matter over Thread
+set(VOICEIQ_MATTER_TRANSPORT "thread")
+```
+
+Matter is always enabled. Wi-Fi mode supports the browser log at
+`voiceiqmatter.local`. Thread mode completely disables the HTTP log server,
+even if `VOICEIQ_ENABLE_HTTP_DEBUG` is `ON`.
+
+For a Wi-Fi build, choose whether the browser log runs:
+
+```cmake
+set(VOICEIQ_ENABLE_HTTP_DEBUG ON)  # Run the HTTP log server
+set(VOICEIQ_ENABLE_HTTP_DEBUG OFF) # Do not build or start the HTTP log server
+```
+
+After changing either setting, make a clean build:
+
+```sh
+idf.py fullclean
+idf.py build
+```
+
 ## First boot and Matter pairing
 
 1. Leave the Touch2O cable and buck disconnected. Flash the XIAO over USB-C.
@@ -102,7 +141,9 @@ installations are elsewhere.
 
 ## Debug log
 
-Once the XIAO is on Wi-Fi, open `http://<device-ip>/` on your local network.
+When Wi-Fi transport and HTTP debugging are enabled, open
+`http://voiceiqmatter.local/` on your local network. You can use
+`http://<device-ip>/` as a fallback.
 It shows a live RAM-only Touch2O UART log containing sent commands, heartbeats,
 and valve status. Every byte received from the Touch2O status wire is shown as
 `RX raw` in hexadecimal. Complete status frames are also labeled as `valve
@@ -111,6 +152,11 @@ visible while the status and temperature data are identified. The page has no
 authentication, so do not expose it outside your LAN.
 
 ## Protocol implemented
+
+The controller listens for faucet status as soon as it starts, but it does not
+send handshakes, heartbeats, or valve commands until Matter commissioning has
+completed. On later boots, a saved Matter fabric enables protocol traffic after
+the Matter stack starts.
 
 The local interface is 9600 baud, 8N1 with the handshake on RJ45 pin 7.
 

@@ -8,17 +8,16 @@
 #include <esp_matter_endpoint.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/portmacro.h>
+#include <app/server/Server.h>
 #include <platform/CHIPDeviceLayer.h>
 #include <setup_payload/OnboardingCodesUtil.h>
 
 #include "faucet/touch2o_controller.h"
+#include "matter/project_commissionable_data_provider.h"
+#include "project_config.h"
 
 namespace matter_water_valve {
 namespace {
-
-constexpr const char *kManufacturer = "DIY";
-constexpr const char *kProductName = "Delta Touch2O Faucet";
-constexpr const char *kModel = "VoiceIQ replacement";
 
 using namespace chip::app::Clusters;
 
@@ -28,6 +27,12 @@ bool sValveOpen = false;
 bool sReportPending = false;
 bool sReportingPhysicalState = false;
 portMUX_TYPE sStateMutex = portMUX_INITIALIZER_UNLOCKED;
+
+void matterEventCallback(const ChipDeviceEvent *event, intptr_t) {
+  if (event->Type == chip::DeviceLayer::DeviceEventType::kCommissioningComplete && sFaucet != nullptr) {
+    sFaucet->enableProtocolTraffic();
+  }
+}
 
 void reportValveStateOnMatterThread(intptr_t) {
   bool open;
@@ -68,13 +73,16 @@ esp_err_t attributeUpdateCallback(
 }
 
 void configureMetadata() {
-  esp_matter_attr_val_t value = esp_matter_char_str(const_cast<char *>(kManufacturer), strlen(kManufacturer));
+  esp_matter_attr_val_t value = esp_matter_char_str(
+      const_cast<char *>(project_config::kManufacturer), strlen(project_config::kManufacturer));
   esp_matter::attribute::update(0, BasicInformation::Id, BasicInformation::Attributes::VendorName::Id, &value);
-  value = esp_matter_char_str(const_cast<char *>(kProductName), strlen(kProductName));
+  value = esp_matter_char_str(
+      const_cast<char *>(project_config::kProductName), strlen(project_config::kProductName));
   esp_matter::attribute::update(0, BasicInformation::Id, BasicInformation::Attributes::ProductName::Id, &value);
-  value = esp_matter_char_str(const_cast<char *>(kModel), strlen(kModel));
+  value = esp_matter_char_str(const_cast<char *>(project_config::kModel), strlen(project_config::kModel));
   esp_matter::attribute::update(0, BasicInformation::Id, BasicInformation::Attributes::ProductLabel::Id, &value);
-  value = esp_matter_char_str(const_cast<char *>(kProductName), strlen(kProductName));
+  value = esp_matter_char_str(
+      const_cast<char *>(project_config::kProductName), strlen(project_config::kProductName));
   esp_matter::attribute::update(0, BasicInformation::Id, BasicInformation::Attributes::NodeLabel::Id, &value);
 }
 
@@ -114,10 +122,16 @@ bool begin(faucet::Touch2OController &faucet) {
 }
 
 bool start() {
-  const esp_err_t error = esp_matter::start(nullptr);
+  installProjectCommissionableDataProvider();
+  const esp_err_t error = esp_matter::start(matterEventCallback);
   if (error != ESP_OK) {
     ESP_LOGE("matter", "Failed to start Matter: %s", esp_err_to_name(error));
     return false;
+  }
+  // CommissioningComplete is not emitted again after a normal reboot. A
+  // stored fabric means commissioning was completed on an earlier boot.
+  if (sFaucet != nullptr && chip::Server::GetInstance().GetFabricTable().FabricCount() > 0) {
+    sFaucet->enableProtocolTraffic();
   }
   return true;
 }

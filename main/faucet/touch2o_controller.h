@@ -16,6 +16,9 @@ class Touch2OController {
 
   void begin();
   void poll();
+  // Starts outbound handshakes, heartbeats, and commands after Matter has a
+  // commissioned fabric. UART status reception remains active before this.
+  void enableProtocolTraffic();
   void requestValve(bool open);
   void setStateCallback(StateCallback callback);
   // Called by the serial-frame parser after an exact physical status frame.

@@ -10,11 +10,14 @@
 #include <esp_netif.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/portmacro.h>
+#include <mdns.h>
+
+#include "project_config.h"
 
 namespace web_log {
 namespace {
 
-constexpr size_t kLogBufferSize = 12 * 1024;
+constexpr size_t kLogBufferSize = project_config::kHttpLogBufferSize;
 constexpr char kPage[] = R"HTML(<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Delta Touch2O Matter logs</title><style>body{margin:16px;background:#111;color:#ddd;font:14px ui-monospace,Menlo,monospace}pre{white-space:pre-wrap;word-break:break-word}</style><h2>Delta Touch2O Matter — live log</h2><pre id="log">Loading…</pre><script>const l=document.querySelector('#log');async function r(){try{const x=await fetch('/logs',{cache:'no-store'});l.textContent=await x.text()}catch(e){l.textContent='Connection lost; retrying…'}}r();setInterval(r,1000)</script>)HTML";
 
 char sLogBuffer[kLogBufferSize]{};
@@ -23,6 +26,7 @@ size_t sLogLength = 0;
 portMUX_TYPE sLogMutex = portMUX_INITIALIZER_UNLOCKED;
 vprintf_like_t sOriginalVprintf = nullptr;
 httpd_handle_t sServer = nullptr;
+bool sHostnameAdded = false;
 
 void appendLog(const char *text, size_t length) {
   portENTER_CRITICAL(&sLogMutex);
@@ -67,7 +71,25 @@ esp_err_t logsHandler(httpd_req_t *request) {
   return result;
 }
 
-void startServer(void *, esp_event_base_t, int32_t, void *) {
+void publishHostname(const ip_event_got_ip_t &gotIp) {
+  mdns_ip_addr_t address = {};
+  address.addr.type = ESP_IPADDR_TYPE_V4;
+  address.addr.u_addr.ip4 = gotIp.ip_info.ip;
+  address.next = nullptr;
+
+  const esp_err_t error = sHostnameAdded
+      ? mdns_delegate_hostname_set_address(project_config::kHostname, &address)
+      : mdns_delegate_hostname_add(project_config::kHostname, &address);
+  if (error == ESP_OK) {
+    sHostnameAdded = true;
+  } else {
+    ESP_LOGW("web_log", "Unable to publish %s.local: %s", project_config::kHostname,
+             esp_err_to_name(error));
+  }
+}
+
+void startServer(void *, esp_event_base_t, int32_t, void *eventData) {
+  if (eventData != nullptr) publishHostname(*static_cast<ip_event_got_ip_t *>(eventData));
   if (sServer) return;
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.lru_purge_enable = true;
@@ -76,7 +98,7 @@ void startServer(void *, esp_event_base_t, int32_t, void *) {
   const httpd_uri_t logs = {.uri = "/logs", .method = HTTP_GET, .handler = logsHandler, .user_ctx = nullptr};
   httpd_register_uri_handler(sServer, &root);
   httpd_register_uri_handler(sServer, &logs);
-  ESP_LOGI("web_log", "Log page available at http://<device-ip>/");
+  ESP_LOGI("web_log", "Log page available at http://%s.local/", project_config::kHostname);
 }
 
 }  // namespace

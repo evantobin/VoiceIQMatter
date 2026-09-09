@@ -1,6 +1,7 @@
 # ESP-IDF generated output
 /build/
 /build-host-tests/
+/build-thread/
 /managed_components/
 /sdkconfig
 /sdkconfig.old
